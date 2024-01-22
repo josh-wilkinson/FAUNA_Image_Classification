@@ -1,40 +1,54 @@
 package com.example.fauna_image_classification.android
 
 import android.os.Bundle
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.fauna_image_classification.Greeting
+
+var camera: Button? = null
+var gallery: Button? = null
+var imageView: ImageView? = null
+var result: TextView? = null
+var imageSize = 150
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            MyApplicationTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    GreetingView(Greeting().greet())
-                }
-            }
+        setContentView(R.layout.activity_main)
+
+        camera = findViewById(R.id.button)
+        gallery = findViewById(R.id.button2)
+
+        result = findViewById(R.id.result)
+        imageView = findViewById(R.id.imageView)
+
+
+
+    }
+}
+
+
+
+/*
+@Composable
+fun GreetingView(phrases: List<String>) {
+    LazyColumn(
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(phrases) { phrase ->
+            Text(phrase)
+            Divider()
         }
     }
 }
 
 @Composable
-fun GreetingView(text: String) {
-    Text(text = text)
-}
-
-@Preview
-@Composable
-fun DefaultPreview() {
+private fun DefaultPreview() {
     MyApplicationTheme {
-        GreetingView("Hello, Android!")
+        GreetingView(listOf("Hello, Android!"))
     }
 }
+*/
