@@ -8,7 +8,7 @@ import androidx.activity.ComponentActivity
 
 var camera: Button? = null
 var gallery: Button? = null
-var imageView: ImageView? = null
+var cameraView: ImageView? = null
 var result: TextView? = null
 var imageSize = 150
 
@@ -18,14 +18,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        camera = findViewById(R.id.button)
-        gallery = findViewById(R.id.button2)
+        //camera = findViewById(R.id.button)
+        //gallery = findViewById(R.id.button2)
 
-        result = findViewById(R.id.result)
-        imageView = findViewById(R.id.imageView)
-
-
-
+        //result = findViewById(R.id.result)
+        cameraView = findViewById(R.id.cameraPreview)
     }
 }
 
