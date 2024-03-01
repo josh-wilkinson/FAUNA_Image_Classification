@@ -20,6 +20,8 @@ android {
     }
     buildFeatures {
         compose = true
+        viewBinding = true
+        mlModelBinding = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = libs.versions.compose.compiler.get()
@@ -55,6 +57,8 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.camera.view)
     implementation(libs.androidx.appcompat)
+    implementation(libs.filament.android)
+    implementation(libs.androidx.constraintlayout)
     debugImplementation(libs.compose.ui.tooling)
 
     implementation("androidx.core:core-ktx:1.9.0")
@@ -73,7 +77,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
-    val cameraxVersion = "1.3.0-rc01"
+    val cameraxVersion = "1.2.2"
 
     implementation("androidx.camera:camera-core:$cameraxVersion")
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
@@ -84,7 +88,12 @@ dependencies {
     implementation("androidx.camera:camera-extensions:$cameraxVersion")
 
     // Tensorflow Lite dependencies
-    implementation("org.tensorflow:tensorflow-lite-task-vision:0.4.0")
-    implementation("org.tensorflow:tensorflow-lite-gpu-delegate-plugin:0.4.0")
-    implementation("org.tensorflow:tensorflow-lite-gpu:2.9.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.3.1")
+    implementation("org.tensorflow:tensorflow-lite-metadata:0.1.0")
+
+    implementation("com.aallam.openai:openai-client:3.0.0")
+    implementation("io.ktor:ktor-client-android:2.2.4")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
+    implementation("com.android.volley:volley:1.2.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

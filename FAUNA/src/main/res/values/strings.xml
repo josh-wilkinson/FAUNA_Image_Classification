@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">FAUNA classification</string>
+    <string name="take_photo">Take Photo</string>
+    <string name="select_image">Select Image</string>
+    <string name="stop_capture">Stop Capture</string>
+    <string name="please_wait_a_few_moments">Please wait a few moments...</string>
+</resources>

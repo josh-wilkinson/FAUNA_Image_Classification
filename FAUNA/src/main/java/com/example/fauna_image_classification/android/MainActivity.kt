@@ -1,51 +1,365 @@
 package com.example.fauna_image_classification.android
 
+import android.Manifest
+import android.content.ContentValues
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.os.Build
 import android.os.Bundle
-import android.widget.Button
+import android.provider.MediaStore
+import android.util.Log
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.activity.ComponentActivity
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.video.Recorder
+import androidx.camera.video.Recording
+import androidx.camera.video.VideoCapture
+import androidx.core.content.ContextCompat
+import com.example.fauna_image_classification.android.databinding.ActivityMainBinding
+import com.example.fauna_image_classification.android.ml.Model
+import org.tensorflow.lite.DataType
+import org.tensorflow.lite.support.image.ImageProcessor
+import org.tensorflow.lite.support.image.ops.ResizeOp
+import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
-var camera: Button? = null
-var gallery: Button? = null
-var cameraView: ImageView? = null
-var result: TextView? = null
-var imageSize = 150
 
-class MainActivity : ComponentActivity() {
+typealias LumaListener = (luma: Double) -> Unit
+typealias ModelListener = (message: String) -> Unit
+
+var currentImage : Bitmap? = null
+
+class MainActivity : AppCompatActivity() {
+    private lateinit var viewBinding: ActivityMainBinding
+    private lateinit var imageProcessor: ImageProcessor
+
+    private var imageCapture: ImageCapture? = null
+
+    private var videoCapture: VideoCapture<Recorder>? = null
+    private var recording: Recording? = null
+
+    private lateinit var cameraExecutor: ExecutorService
+    private var textView : TextView? = null
+    private var imageView : ImageView? = null
+    private var imageSize = 150
+    private var modelSelected = 0
+
+    public var num = 5
+
+
+    private val activityResultLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions())
+        { permissions ->
+            // Handle Permission granted/rejected
+            var permissionGranted = true
+            permissions.entries.forEach {
+                if (it.key in REQUIRED_PERMISSIONS && it.value == false)
+                    permissionGranted = false
+            }
+            if (!permissionGranted) {
+                Toast.makeText(baseContext,
+                    "Permission request denied",
+                    Toast.LENGTH_SHORT).show()
+            } else {
+                startCamera()
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        viewBinding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(viewBinding.root)
 
-        //camera = findViewById(R.id.button)
-        //gallery = findViewById(R.id.button2)
+        textView = findViewById<TextView>(R.id.model_result_text) as TextView
+        imageView = findViewById<ImageView>(R.id.imageView) as ImageView
 
-        //result = findViewById(R.id.result)
-        cameraView = findViewById(R.id.cameraPreview)
+        imageProcessor = ImageProcessor.Builder()
+            .add(ResizeOp(150, 150, ResizeOp.ResizeMethod.BILINEAR))
+            .build()
+
+        // Request camera permissions
+        if (allPermissionsGranted()) {
+            startCamera()
+        } else {
+            requestPermissions()
+        }
+
+        // Set up the listeners for take photo and video capture buttons
+        viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
+        viewBinding.selectImageButton.setOnClickListener { openGallery() }
+
+        cameraExecutor = Executors.newSingleThreadExecutor()
     }
-}
+
+    private fun takePhoto() {
+        // Get a stable reference of the modifiable image capture use case
+        val imageCapture = imageCapture ?: return
+
+        // Create time stamped name and MediaStore entry.
+        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
+            .format(System.currentTimeMillis())
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-Image")
+            }
+        }
+        // Create output options object which contains file + metadata
+        val outputOptions = ImageCapture.OutputFileOptions
+            .Builder(contentResolver,
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                contentValues)
+            .build()
+
+        // Set up image capture listener, which is triggered after photo has
+        // been taken
+        /*
+        imageCapture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onError(exc: ImageCaptureException) {
+                    Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
+                }
+
+                override fun onImageSaved(output: ImageCapture.OutputFileResults){
+                    val msg = "Photo capture succeeded: ${output.savedUri}"
+                    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, msg)
+                }
+            },
+        )
+        */
+        imageCapture.takePicture(
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageCapturedCallback() {
+                override fun onCaptureSuccess(image: ImageProxy) {
+                    //get bitmap from image
+                    var bitmap = imageProxyToBitmap(image)
+                    //super.onCaptureSuccess(image)
+                    var resultsList = classifySnakeImage(bitmap)
+                    // create popup
+                    val intent = Intent(this@MainActivity, Popup::class.java)
+                    intent.putExtra("Classification", resultsList[0])
+                    intent.putExtra("maxConfidence", resultsList[1])
+                    startActivity(intent)
+                    image.close()
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    super.onError(exception)
+                }
+            })
+    }
+
+    // Convert data to Bitmap
+    private fun imageProxyToBitmap(image: ImageProxy): Bitmap {
+        val planeProxy: ImageProxy.PlaneProxy = image.planes[0]
+        val buffer: ByteBuffer = planeProxy.buffer
+        val bytes = ByteArray(buffer.remaining())
+        buffer.get(bytes)
+
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    }
+
+    // Use the snake model to classify an image and returns the species of snake as a string
+    private fun classifySnakeImage(image: Bitmap): List<String> {
+        var resize: Bitmap = Bitmap.createScaledBitmap(image, 150, 150, true)
+        // create new instance of the model
+        val model = Model.newInstance(applicationContext)
+
+        // Creates inputs for reference.
+        val inputFeature0 =
+            TensorBuffer.createFixedSize(intArrayOf(1, 150, 150, 3), DataType.FLOAT32)
+
+        val byteBuffer = ByteBuffer.allocateDirect(4 * imageSize * imageSize * 3)
+        byteBuffer.order(ByteOrder.nativeOrder())
+
+        val intValues = IntArray(imageSize * imageSize)
+        resize.getPixels(intValues, 0, resize.width, 0, 0, resize.width, resize.height)
+        var pixel = 0
+        //iterate over each pixel and extract R, G, and B values. Add those values individually to the byte buffer.
+        for (i in 0 until imageSize) {
+            for (j in 0 until imageSize) {
+                val `val` = intValues[pixel++] // RGB
+                byteBuffer.putFloat(((`val` shr 16) and 0xFF) * (1f / 255))
+                byteBuffer.putFloat(((`val` shr 8) and 0xFF) * (1f / 255))
+                byteBuffer.putFloat((`val` and 0xFF) * (1f / 255))
+            }
+        }
+        inputFeature0.loadBuffer(byteBuffer)
+
+        // Runs model inference and gets result.
+        val outputs = model.process(inputFeature0)
+        val outputFeature0 = outputs.outputFeature0AsTensorBuffer
+        val confidences = outputFeature0.floatArray
+        // find the index of the class with the biggest confidence.
+        var maxPos = 0
+        var maxConfidence = 0.1f
+        for (i in confidences.indices) {
+            if (confidences[i] > maxConfidence) {
+                maxConfidence = confidences[i]
+                maxPos = i
+            }
+        }
+        val classes = arrayOf(
+            "Agkistrodon contortrix",
+            "Agkistrodon piscivorus",
+            "Ahaetulla nasuta",
+            "Ahaetulla prasina",
+            "Arizona elegans"
+        )
+        // Do a popup explaining the classification
+        //textView?.setText("Classification: " + classes[maxPos] + ", " + maxConfidence)
+        // Releases model resources if no longer used.
+        model.close()
+        // return a results list containing the classification and max confidence
+        return listOf(classes[maxPos], "$maxConfidence")
+    }
+
+    private fun openGallery() {
+        var intent : Intent = Intent()
+        intent.setAction(Intent.ACTION_GET_CONTENT)
+        intent.setType("image/")
+        startActivityForResult(intent, 100)
+    }
+
+    private fun captureVideo() {}
+
+    private fun startCamera() {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+        cameraProviderFuture.addListener({
+            // Used to bind the lifecycle of cameras to the lifecycle owner
+            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+            // Preview
+            val preview = Preview.Builder()
+                .build()
+                .also {
+                    it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
+                }
+            imageCapture = ImageCapture.Builder()
+                .build()
+
+            val imageAnalyzer = ImageAnalysis.Builder()
+                .build()
+                .also {
+                    it.setAnalyzer(cameraExecutor, ModelAnalyzer { message ->
+                        Log.d(TAG, "Message: $message")
+                    })
+                }
+            // Select back camera as a default
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+            try {
+                // Unbind use cases before rebinding
+                cameraProvider.unbindAll()
+                // Bind use cases to camera
+                cameraProvider.bindToLifecycle(
+                    this, cameraSelector, preview, imageCapture, imageAnalyzer)
+            }
+            catch(exc: Exception) {
+                Log.e(TAG, "Use case binding failed", exc)
+            }
+
+        }, ContextCompat.getMainExecutor(this))
+    }
 
 
 
-/*
-@Composable
-fun GreetingView(phrases: List<String>) {
-    LazyColumn(
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        items(phrases) { phrase ->
-            Text(phrase)
-            Divider()
+    private fun requestPermissions() {
+        activityResultLauncher.launch(REQUIRED_PERMISSIONS)
+    }
+
+
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(
+            baseContext, it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cameraExecutor.shutdown()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        // requestCode 100 means the user selected an image from their gallery on their device
+        if (requestCode == 100){
+            var uri = data?.data
+            var bitmap : Bitmap = MediaStore.Images.Media.getBitmap(this.contentResolver, uri)
+            var resultsList = classifySnakeImage(bitmap)
+            // open popup
+            val intent = Intent(this@MainActivity, Popup::class.java)
+            intent.putExtra("Classification", resultsList[0])
+            intent.putExtra("maxConfidence", resultsList[1])
+            startActivity(intent)
+        }
+    }
+
+    companion object {
+        private const val TAG = "FAUNA"
+        private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
+        private val REQUIRED_PERMISSIONS =
+            mutableListOf (
+                Manifest.permission.CAMERA,
+                Manifest.permission.RECORD_AUDIO
+            ).apply {
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                    add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                }
+            }.toTypedArray()
+    }
+
+    private class LuminosityAnalyzer(private val listener: LumaListener) : ImageAnalysis.Analyzer {
+        private fun ByteBuffer.toByteArray(): ByteArray {
+            rewind()    // Rewind the buffer to zero
+            val data = ByteArray(remaining())
+            get(data)   // Copy the buffer into a byte array
+            return data // Return the byte array
+        }
+
+        override fun analyze(image: ImageProxy) {
+            val buffer = image.planes[0].buffer
+            val data = buffer.toByteArray()
+            val pixels = data.map { it.toInt() and 0xFF }
+            val luma = pixels.average()
+
+            listener(luma)
+            image.close()
+        }
+    }
+
+    inner class ModelAnalyzer(private val message: ModelListener) : ImageAnalysis.Analyzer {
+        override fun analyze(theImage: ImageProxy) {
+            if (theImage != null) {
+                //val planeProxy: ImageProxy.PlaneProxy = theImage.planes[0]
+                //val buffer: ByteBuffer = planeProxy.buffer
+                //val bytes = ByteArray(buffer.remaining())
+                //buffer.get(bytes)
+                //val theBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }
+            message("wowo")
+            theImage.close()
         }
     }
 }
 
-@Composable
-private fun DefaultPreview() {
-    MyApplicationTheme {
-        GreetingView(listOf("Hello, Android!"))
-    }
-}
-*/
+
