@@ -43,14 +43,11 @@ import java.util.concurrent.Executors
 typealias LumaListener = (luma: Double) -> Unit
 typealias ModelListener = (message: String) -> Unit
 
-var currentImage : Bitmap? = null
-
 class MainActivity : AppCompatActivity() {
     private lateinit var viewBinding: ActivityMainBinding
     private lateinit var imageProcessor: ImageProcessor
 
     private var imageCapture: ImageCapture? = null
-
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
 
@@ -59,9 +56,6 @@ class MainActivity : AppCompatActivity() {
     private var imageView : ImageView? = null
     private var imageSize = 150
     private var modelSelected = 0
-
-    public var num = 5
-
 
     private val activityResultLauncher =
         registerForActivityResult(
@@ -82,11 +76,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    // When an instance of this class is created, this function will run.
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
-
         textView = findViewById<TextView>(R.id.model_result_text) as TextView
         imageView = findViewById<ImageView>(R.id.imageView) as ImageView
 
@@ -104,7 +98,6 @@ class MainActivity : AppCompatActivity() {
         // Set up the listeners for take photo and video capture buttons
         viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
         viewBinding.selectImageButton.setOnClickListener { openGallery() }
-
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
@@ -130,7 +123,8 @@ class MainActivity : AppCompatActivity() {
             .build()
 
         // Set up image capture listener, which is triggered after photo has
-        // been taken
+        // been taken, and save the image - note: this works, but is disabled for testing purposes,
+        // so that I won't have to go back and delete them...
         /*
         imageCapture.takePicture(
             outputOptions,
@@ -148,6 +142,7 @@ class MainActivity : AppCompatActivity() {
             },
         )
         */
+        // this will take a picture on success and give an ImageProxy to mess with
         imageCapture.takePicture(
             ContextCompat.getMainExecutor(this),
             object : ImageCapture.OnImageCapturedCallback() {
@@ -163,24 +158,23 @@ class MainActivity : AppCompatActivity() {
                     startActivity(intent)
                     image.close()
                 }
-
                 override fun onError(exception: ImageCaptureException) {
                     super.onError(exception)
                 }
             })
     }
 
-    // Convert data to Bitmap
+    // Convert ImageProxy data to Bitmap
     private fun imageProxyToBitmap(image: ImageProxy): Bitmap {
         val planeProxy: ImageProxy.PlaneProxy = image.planes[0]
         val buffer: ByteBuffer = planeProxy.buffer
         val bytes = ByteArray(buffer.remaining())
         buffer.get(bytes)
-
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     }
 
-    // Use the snake model to classify an image and returns the species of snake as a string
+    // Use the snake model to classify an image, returns the species of snake and the confidence in a list
+    // of strings, to be used in a popup instance.
     private fun classifySnakeImage(image: Bitmap): List<String> {
         var resize: Bitmap = Bitmap.createScaledBitmap(image, 150, 150, true)
         // create new instance of the model
@@ -213,13 +207,15 @@ class MainActivity : AppCompatActivity() {
         val confidences = outputFeature0.floatArray
         // find the index of the class with the biggest confidence.
         var maxPos = 0
-        var maxConfidence = 0.1f
+        var maxConfidence = 0.5f
         for (i in confidences.indices) {
             if (confidences[i] > maxConfidence) {
                 maxConfidence = confidences[i]
                 maxPos = i
             }
         }
+        // different snakes: to-do - add the rest of them with the new model
+        // maybe map values?
         val classes = arrayOf(
             "Agkistrodon contortrix",
             "Agkistrodon piscivorus",
@@ -227,14 +223,15 @@ class MainActivity : AppCompatActivity() {
             "Ahaetulla prasina",
             "Arizona elegans"
         )
-        // Do a popup explaining the classification
-        //textView?.setText("Classification: " + classes[maxPos] + ", " + maxConfidence)
         // Releases model resources if no longer used.
         model.close()
-        // return a results list containing the classification and max confidence
-        return listOf(classes[maxPos], "$maxConfidence")
+        // make this look better as a percentage
+        maxConfidence *= 100
+        // return a results list containing the classification and max confidence, to be used by the popup window.
+        return listOf(classes[maxPos], "$maxConfidence%")
     }
 
+    // opens the user's photo library, where the can select an image to classify
     private fun openGallery() {
         var intent : Intent = Intent()
         intent.setAction(Intent.ACTION_GET_CONTENT)
@@ -242,6 +239,7 @@ class MainActivity : AppCompatActivity() {
         startActivityForResult(intent, 100)
     }
 
+    // empty method in case I want to do anything with video capture in the future
     private fun captureVideo() {}
 
     private fun startCamera() {
@@ -261,8 +259,14 @@ class MainActivity : AppCompatActivity() {
             val imageAnalyzer = ImageAnalysis.Builder()
                 .build()
                 .also {
-                    it.setAnalyzer(cameraExecutor, ModelAnalyzer { message ->
-                        Log.d(TAG, "Message: $message")
+                    it.setAnalyzer(cameraExecutor, LuminosityAnalyzer { luma ->
+                        //Log.d(TAG, "Luminosity: $luma")
+                        if (luma < 10) {
+                            textView?.setText("Too dark!")
+                        }
+                        else {
+                            textView?.setText("")
+                        }
                     })
                 }
             // Select back camera as a default
@@ -282,23 +286,24 @@ class MainActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-
-
+    // launches request permissions notification
     private fun requestPermissions() {
         activityResultLauncher.launch(REQUIRED_PERMISSIONS)
     }
 
-
+    // checks required permissions
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(
             baseContext, it) == PackageManager.PERMISSION_GRANTED
     }
 
+    // shuts down the camera
     override fun onDestroy() {
         super.onDestroy()
         cameraExecutor.shutdown()
     }
 
+    // phone activity result operations
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         // requestCode 100 means the user selected an image from their gallery on their device
@@ -328,6 +333,7 @@ class MainActivity : AppCompatActivity() {
             }.toTypedArray()
     }
 
+    // This image analyser looks at the current luminosity of the camera image
     private class LuminosityAnalyzer(private val listener: LumaListener) : ImageAnalysis.Analyzer {
         private fun ByteBuffer.toByteArray(): ByteArray {
             rewind()    // Rewind the buffer to zero
@@ -344,20 +350,6 @@ class MainActivity : AppCompatActivity() {
 
             listener(luma)
             image.close()
-        }
-    }
-
-    inner class ModelAnalyzer(private val message: ModelListener) : ImageAnalysis.Analyzer {
-        override fun analyze(theImage: ImageProxy) {
-            if (theImage != null) {
-                //val planeProxy: ImageProxy.PlaneProxy = theImage.planes[0]
-                //val buffer: ByteBuffer = planeProxy.buffer
-                //val bytes = ByteArray(buffer.remaining())
-                //buffer.get(bytes)
-                //val theBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            }
-            message("wowo")
-            theImage.close()
         }
     }
 }
