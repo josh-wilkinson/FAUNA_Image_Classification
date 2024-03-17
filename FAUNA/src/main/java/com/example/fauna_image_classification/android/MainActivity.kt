@@ -10,6 +10,9 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -100,6 +103,25 @@ class MainActivity : AppCompatActivity() {
         viewBinding.selectImageButton.setOnClickListener { openGallery() }
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        val inflater: MenuInflater = menuInflater
+        inflater.inflate(R.menu.nav_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        // Handle item selection.
+        return when (item.itemId) {
+            R.id.feedback -> {
+                val intent = Intent(this@MainActivity, Feedback::class.java)
+                startActivity(intent)
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
 
     private fun takePhoto() {
         // Get a stable reference of the modifiable image capture use case

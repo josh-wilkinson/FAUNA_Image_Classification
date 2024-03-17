@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.filament.android)
     implementation(libs.androidx.constraintlayout)
+    implementation(libs.material)
     debugImplementation(libs.compose.ui.tooling)
 
     implementation("androidx.core:core-ktx:1.9.0")
@@ -96,4 +97,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     implementation("com.android.volley:volley:1.2.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    implementation ("com.google.android.material:material:1.11.0-alpha01")
 }
