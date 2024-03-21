@@ -174,7 +174,7 @@ class MainActivity : AppCompatActivity() {
                     //super.onCaptureSuccess(image)
                     var resultsList = classifySnakeImage(bitmap)
                     // create popup
-                    val intent = Intent(this@MainActivity, Popup::class.java)
+
                     intent.putExtra("Classification", resultsList[0])
                     intent.putExtra("maxConfidence", resultsList[1])
                     startActivity(intent)

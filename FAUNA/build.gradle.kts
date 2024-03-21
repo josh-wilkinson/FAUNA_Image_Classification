@@ -99,4 +99,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     implementation ("com.google.android.material:material:1.11.0-alpha01")
+    // import Kotlin API client BOM
+    platform("com.aallam.openai:openai-client-bom:3.2.3")
 }
