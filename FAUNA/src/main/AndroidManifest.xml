@@ -42,6 +42,11 @@
             android:theme="@style/AppTheme.CustomTheme">
         </activity>
 
+        <activity
+            android:name=".Chat"
+            android:theme="@style/Theme.AppCompat">
+        </activity>
+
     </application>
 
 </manifest>

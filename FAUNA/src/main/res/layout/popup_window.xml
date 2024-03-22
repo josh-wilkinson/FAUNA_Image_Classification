@@ -14,7 +14,7 @@
             android:id="@+id/popupHeaderText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Classification"
+            android:text="@string/please_wait_a_few_moments"
             android:textColor="@color/black"
             android:textSize="24sp"
             android:textStyle="bold"
@@ -44,7 +44,7 @@
             android:text="@string/please_wait_a_few_moments"
             android:textColor="@color/black"
             android:textSize="20sp"
-            android:visibility="visible"
+            android:visibility="gone"
             />
         <Button
             android:id="@+id/popupMoreInfoButton"

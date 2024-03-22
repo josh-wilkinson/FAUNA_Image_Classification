@@ -1,6 +1,7 @@
 package com.example.fauna_image_classification.android
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Bundle
@@ -89,20 +90,25 @@ class Popup : AppCompatActivity() {
                 }
             }
 
-
             generateDALLEImage(prompt) { response ->
                 runOnUiThread {
                     imageView.setImageBitmap(response)
                 }
             }
 
+            moreInfoButton?.setOnClickListener(View.OnClickListener {
+                moreInfoButton?.visibility = View.GONE
+                txtResponse?.visibility = View.VISIBLE
+            })
+
             askMeButton?.setOnClickListener(View.OnClickListener {
 
-                runOnUiThread {
-                    txtResponse?.visibility = View.VISIBLE
-                }
+                val intent = Intent(this, Chat::class.java)
+                startActivity(intent)
 
             })
+
+
 
         }
 
@@ -206,10 +212,6 @@ class Popup : AppCompatActivity() {
             }
 
         })
-
-    }
-
-    fun updateImage() {
 
     }
 

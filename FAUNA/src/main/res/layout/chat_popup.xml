@@ -17,7 +17,7 @@
         android:layout_height="wrap_content"
         android:id="@+id/welcome_text"
         android:layout_centerInParent="true"
-        android:text="Try it out!"
+        android:text="Try asking a question!"
         android:gravity="center"
         android:textSize="28dp"
         />
@@ -37,6 +37,7 @@
             android:padding="16dp"
             android:layout_toLeftOf="@id/send_button"
             android:background="@drawable/rounded_corner"
+            android:textColor="@color/black"
             />
         <ImageButton
             android:layout_width="48dp"
