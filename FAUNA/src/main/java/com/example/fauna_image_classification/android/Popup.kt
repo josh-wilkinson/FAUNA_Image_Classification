@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
 import android.os.Bundle
 import android.text.method.ScrollingMovementMethod
 import android.util.DisplayMetrics
@@ -12,6 +13,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import okhttp3.Call
 import okhttp3.Callback
@@ -23,8 +25,20 @@ import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.URL
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.nio.file.StandardOpenOption
 import java.util.concurrent.TimeUnit
+
+
+data class CSVData(
+    val type: String,
+    val lon: Double,
+    val lat: Double
+)
 
 class Popup : AppCompatActivity() {
 
@@ -48,6 +62,7 @@ class Popup : AppCompatActivity() {
     private var moreInfoButton : Button? = null
     private var askMeButton : Button? = null
 
+    @RequiresApi(Build.VERSION_CODES.O)
     @SuppressLint("MissingInflatedId")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,6 +79,20 @@ class Popup : AppCompatActivity() {
 
             var header = "Classification: $classification, confidence: $confidence."
             setContentView(R.layout.popup_window)
+
+            // map csv stuff
+
+            var string = "$classification"
+            var inputStream: InputStream? = null
+            val path = System.getProperty("user.dir") + "\\src\\main\\res\\assets\\map.txt"
+            val text = "\n$classification, 0, 0"
+
+            try {
+                Files.write(Paths.get(path), text.toByteArray(), StandardOpenOption.APPEND)
+            } catch (e: IOException) {
+            }
+
+            // chat GPT stuff
 
             txtResponse = findViewById<TextView>(R.id.popupTextView) as TextView
 
@@ -89,6 +118,7 @@ class Popup : AppCompatActivity() {
                     txtResponse?.setText(response)
                 }
             }
+
 
             generateDALLEImage(prompt) { response ->
                 runOnUiThread {
@@ -214,5 +244,17 @@ class Popup : AppCompatActivity() {
         })
 
     }
+
+    fun OutputStream.writeCsv(CSVRow: List<CSVData>) {
+        val writer = bufferedWriter()
+        writer.write(""""date", "type", "lon", "lat"""")
+        writer.newLine()
+        CSVRow.forEach {
+            writer.write("${it.type}, ${it.lat}, \"${it.lat}\"")
+            writer.newLine()
+        }
+        writer.flush()
+    }
+
 
 }

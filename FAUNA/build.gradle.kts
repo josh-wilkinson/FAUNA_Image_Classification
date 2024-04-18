@@ -60,7 +60,11 @@ dependencies {
     implementation(libs.filament.android)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.material)
+    implementation(libs.androidx.recyclerview)
     debugImplementation(libs.compose.ui.tooling)
+
+
+    // For control over item selection of both touch and mouse driven selection
 
     implementation("androidx.core:core-ktx:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
@@ -101,4 +105,7 @@ dependencies {
     implementation ("com.google.android.material:material:1.11.0-alpha01")
     // import Kotlin API client BOM
     platform("com.aallam.openai:openai-client-bom:3.2.3")
+
+    implementation("androidx.webkit:webkit:1.8.0")
+
 }

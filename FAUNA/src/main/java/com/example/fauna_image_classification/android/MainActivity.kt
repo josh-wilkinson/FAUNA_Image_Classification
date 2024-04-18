@@ -28,8 +28,10 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.Recorder
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.fauna_image_classification.android.databinding.ActivityMainBinding
+import com.example.fauna_image_classification.android.ml.DangerousPlants
 import com.example.fauna_image_classification.android.ml.Model
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.support.image.ImageProcessor
@@ -49,6 +51,7 @@ typealias ModelListener = (message: String) -> Unit
 class MainActivity : AppCompatActivity() {
     private lateinit var viewBinding: ActivityMainBinding
     private lateinit var imageProcessor: ImageProcessor
+    private lateinit var resultsList: List<String>
 
     private var imageCapture: ImageCapture? = null
     private var videoCapture: VideoCapture<Recorder>? = null
@@ -58,7 +61,11 @@ class MainActivity : AppCompatActivity() {
     private var textView : TextView? = null
     private var imageView : ImageView? = null
     private var imageSize = 150
-    private var modelSelected = 0
+
+    // 0 = snakes
+    // 1 = commons plants
+    //
+    private var modelSelected = 1
 
     private val activityResultLauncher =
         registerForActivityResult(
@@ -115,6 +122,16 @@ class MainActivity : AppCompatActivity() {
         return when (item.itemId) {
             R.id.feedback -> {
                 val intent = Intent(this@MainActivity, Feedback::class.java)
+                startActivity(intent)
+                true
+            }
+            R.id.map -> {
+                val intent = Intent(this@MainActivity, Map::class.java)
+                startActivity(intent)
+                true
+            }
+            R.id.chat -> {
+                val intent = Intent(this@MainActivity, Chat::class.java)
                 startActivity(intent)
                 true
             }
@@ -175,6 +192,15 @@ class MainActivity : AppCompatActivity() {
                     var resultsList = classifySnakeImage(bitmap)
                     // create popup
 
+                    if (modelSelected == 0) {
+                        resultsList = classifySnakeImage(bitmap)
+                    }
+                    else if (modelSelected == 1) {
+                        resultsList = classifyPlantImage(bitmap)
+                    }
+
+                    // open popup
+                    val intent = Intent(this@MainActivity, Popup::class.java)
                     intent.putExtra("Classification", resultsList[0])
                     intent.putExtra("maxConfidence", resultsList[1])
                     startActivity(intent)
@@ -253,6 +279,64 @@ class MainActivity : AppCompatActivity() {
         return listOf(classes[maxPos], "$maxConfidence%")
     }
 
+    private fun classifyPlantImage(image: Bitmap): List<String> {
+        var resize: Bitmap = Bitmap.createScaledBitmap(image, 150, 150, true)
+        // create new instance of the model
+        val model = DangerousPlants.newInstance(applicationContext)
+
+        // Creates inputs for reference.
+        val inputFeature0 =
+            TensorBuffer.createFixedSize(intArrayOf(1, 150, 150, 3), DataType.FLOAT32)
+
+        val byteBuffer = ByteBuffer.allocateDirect(4 * imageSize * imageSize * 3)
+        byteBuffer.order(ByteOrder.nativeOrder())
+
+        val intValues = IntArray(imageSize * imageSize)
+        resize.getPixels(intValues, 0, resize.width, 0, 0, resize.width, resize.height)
+        var pixel = 0
+        //iterate over each pixel and extract R, G, and B values. Add those values individually to the byte buffer.
+        for (i in 0 until imageSize) {
+            for (j in 0 until imageSize) {
+                val `val` = intValues[pixel++] // RGB
+                byteBuffer.putFloat(((`val` shr 16) and 0xFF) * (1f / 255))
+                byteBuffer.putFloat(((`val` shr 8) and 0xFF) * (1f / 255))
+                byteBuffer.putFloat((`val` and 0xFF) * (1f / 255))
+            }
+        }
+        inputFeature0.loadBuffer(byteBuffer)
+
+        // Runs model inference and gets result.
+        val outputs = model.process(inputFeature0)
+        val outputFeature0 = outputs.outputFeature0AsTensorBuffer
+        val confidences = outputFeature0.floatArray
+        // find the index of the class with the biggest confidence.
+        var maxPos = 0
+        var maxConfidence = 0.5f // acceptable confidence
+        for (i in confidences.indices) {
+            if (confidences[i] > maxConfidence) {
+                maxConfidence = confidences[i]
+                maxPos = i
+            }
+        }
+        // different plants labels
+        val classes = arrayOf(
+            "Castor oil plant",
+            "Dieffenbachia",
+            "Foxglove",
+            "Lilies",
+            "Lily of the valley",
+            "Oleander",
+            "Rhubarb",
+            "Wisteria"
+        )
+        // Releases model resources if no longer used.
+        model.close()
+        // make this look better as a percentage
+        maxConfidence *= 100
+        // return a results list containing the classification and max confidence, to be used by the popup window.
+        return listOf(classes[maxPos], "$maxConfidence%")
+    }
+
     // opens the user's photo library, where the can select an image to classify
     private fun openGallery() {
         var intent : Intent = Intent()
@@ -319,6 +403,29 @@ class MainActivity : AppCompatActivity() {
             baseContext, it) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun isLocationPermissionGranted(): Boolean {
+        return if (ActivityCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                ),
+                500
+            )
+            false
+        } else {
+            true
+        }
+    }
+
     // shuts down the camera
     override fun onDestroy() {
         super.onDestroy()
@@ -332,7 +439,14 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == 100){
             var uri = data?.data
             var bitmap : Bitmap = MediaStore.Images.Media.getBitmap(this.contentResolver, uri)
-            var resultsList = classifySnakeImage(bitmap)
+
+            if (modelSelected == 0) {
+                resultsList = classifySnakeImage(bitmap)
+            }
+            else if (modelSelected == 1) {
+                resultsList = classifyPlantImage(bitmap)
+            }
+
             // open popup
             val intent = Intent(this@MainActivity, Popup::class.java)
             intent.putExtra("Classification", resultsList[0])
