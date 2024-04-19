@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "999520839644",
+    "project_id": "fauna-image-classification",
+    "storage_bucket": "fauna-image-classification.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:999520839644:android:be7171d6087f5aa57c9119",
+        "android_client_info": {
+          "package_name": "com.example.fauna_image_classification.android"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDh0NBiCB9MAm6GK2O7YossluTZTHm1O7Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
