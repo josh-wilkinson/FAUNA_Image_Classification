@@ -36,6 +36,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.fauna_image_classification.android.databinding.ActivityMainBinding
 import com.example.fauna_image_classification.android.ml.DangerousPlants
 import com.example.fauna_image_classification.android.ml.Model
+import com.example.fauna_image_classification.android.ml.Spiders
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.ops.ResizeOp
@@ -120,6 +121,7 @@ class MainActivity : AppCompatActivity() {
 
         setTvSelectedItem()
         setHorizontalPicker()
+        tvSelectedItem.setText("Swipe to Select!")
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -247,7 +249,7 @@ class MainActivity : AppCompatActivity() {
                             startActivity(intent)
                         }
                         "Spiders" -> {
-                            resultsList = classifySnakeImage(bitmap)
+                            resultsList = classifySpiderImage(bitmap)
                             // open popup
                             val intent = Intent(this@MainActivity, Popup::class.java)
                             intent.putExtra("Classification", resultsList[0])
@@ -319,7 +321,7 @@ class MainActivity : AppCompatActivity() {
         val confidences = outputFeature0.floatArray
         // find the index of the class with the biggest confidence.
         var maxPos = 0
-        var maxConfidence = 0.7f
+        var maxConfidence = 0f
         for (i in confidences.indices) {
             if (confidences[i] > maxConfidence) {
                 maxConfidence = confidences[i]
@@ -334,6 +336,72 @@ class MainActivity : AppCompatActivity() {
             "Ahaetulla nasuta",
             "Ahaetulla prasina",
             "Arizona elegans"
+        )
+        // Releases model resources if no longer used.
+        model.close()
+        // make this look better as a percentage
+        maxConfidence *= 100
+        // return a results list containing the classification and max confidence, to be used by the popup window.
+        return listOf(classes[maxPos], "$maxConfidence%")
+    }
+
+    private fun classifySpiderImage(image: Bitmap): List<String> {
+        var resize: Bitmap = Bitmap.createScaledBitmap(image, 150, 150, true)
+        // create new instance of the model
+        val model = Spiders.newInstance(applicationContext)
+
+        // Creates inputs for reference.
+        val inputFeature0 =
+            TensorBuffer.createFixedSize(intArrayOf(1, 150, 150, 3), DataType.FLOAT32)
+
+        val byteBuffer = ByteBuffer.allocateDirect(4 * imageSize * imageSize * 3)
+        byteBuffer.order(ByteOrder.nativeOrder())
+
+        val intValues = IntArray(imageSize * imageSize)
+        resize.getPixels(intValues, 0, resize.width, 0, 0, resize.width, resize.height)
+        var pixel = 0
+        //iterate over each pixel and extract R, G, and B values. Add those values individually to the byte buffer.
+        for (i in 0 until imageSize) {
+            for (j in 0 until imageSize) {
+                val `val` = intValues[pixel++] // RGB
+                byteBuffer.putFloat(((`val` shr 16) and 0xFF) * (1f / 255))
+                byteBuffer.putFloat(((`val` shr 8) and 0xFF) * (1f / 255))
+                byteBuffer.putFloat((`val` and 0xFF) * (1f / 255))
+            }
+        }
+        inputFeature0.loadBuffer(byteBuffer)
+
+        // Runs model inference and gets result.
+        val outputs = model.process(inputFeature0)
+        val outputFeature0 = outputs.outputFeature0AsTensorBuffer
+        val confidences = outputFeature0.floatArray
+        // find the index of the class with the biggest confidence.
+        var maxPos = 0
+        var maxConfidence = 0.7f
+        for (i in confidences.indices) {
+            if (confidences[i] > maxConfidence) {
+                maxConfidence = confidences[i]
+                maxPos = i
+            }
+        }
+        // different snakes: to-do - add the rest of them with the new model
+        // maybe map values?
+        val classes = arrayOf(
+            "Black Widow",
+            "Blue Tarantula",
+            "Bold Jumper",
+            "Brown Grass Spider",
+            "Brown Recluse Spider",
+            "Deinopis Spider",
+            "Golden Orb Weaver",
+            "Hobo Spider",
+            "Huntsman Spider",
+            "Ladybird Mimic Spider",
+            "Peacock Spider",
+            "Red Knee Tarantula",
+            "Spiny-backed Orb-weaver",
+            "White Kneed Tarantula",
+            "Yellow Garden Spider"
         )
         // Releases model resources if no longer used.
         model.close()
@@ -515,7 +583,7 @@ class MainActivity : AppCompatActivity() {
                     startActivity(intent)
                 }
                 "Spiders" -> {
-                    resultsList = classifySnakeImage(bitmap)
+                    resultsList = classifySpiderImage(bitmap)
                     // open popup
                     val intent = Intent(this@MainActivity, Popup::class.java)
                     intent.putExtra("Classification", resultsList[0])

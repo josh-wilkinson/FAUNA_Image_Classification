@@ -130,12 +130,12 @@ class Popup : AppCompatActivity(), LocationListener {
                     txtResponse?.setText(response)
                 }
             }
-/*
+
             generateDALLEImage(prompt) { response ->
                 runOnUiThread {
                     imageView.setImageBitmap(response)
                 }
-            }*/
+            }
 
             moreInfoButton?.setOnClickListener(View.OnClickListener {
                 moreInfoButton?.visibility = View.GONE
