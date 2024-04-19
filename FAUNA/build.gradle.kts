@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -61,10 +62,15 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.material)
     implementation(libs.androidx.recyclerview)
+    implementation("com.google.firebase:firebase-database:20.3.1")
     debugImplementation(libs.compose.ui.tooling)
 
+    //FusedLocationProvider
+    implementation("com.google.android.gms:play-services-location:21.2.0")
 
     // For control over item selection of both touch and mouse driven selection
+    implementation ("androidx.appcompat:appcompat:1.1.0")
+    implementation ("androidx.recyclerview:recyclerview:1.0.0")
 
     implementation("androidx.core:core-ktx:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")

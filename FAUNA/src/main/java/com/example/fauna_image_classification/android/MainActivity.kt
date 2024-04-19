@@ -13,6 +13,7 @@ import android.util.Log
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
+import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -30,6 +31,7 @@ import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.RecyclerView
 import com.example.fauna_image_classification.android.databinding.ActivityMainBinding
 import com.example.fauna_image_classification.android.ml.DangerousPlants
 import com.example.fauna_image_classification.android.ml.Model
@@ -52,6 +54,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewBinding: ActivityMainBinding
     private lateinit var imageProcessor: ImageProcessor
     private lateinit var resultsList: List<String>
+    private lateinit var rvHorizontalPicker: RecyclerView
+    private lateinit var tvSelectedItem: TextView
 
     private var imageCapture: ImageCapture? = null
     private var videoCapture: VideoCapture<Recorder>? = null
@@ -61,6 +65,8 @@ class MainActivity : AppCompatActivity() {
     private var textView : TextView? = null
     private var imageView : ImageView? = null
     private var imageSize = 150
+
+    private val data = arrayListOf("Snakes", "Spiders", "Dangerous Plants")
 
     // 0 = snakes
     // 1 = commons plants
@@ -89,6 +95,7 @@ class MainActivity : AppCompatActivity() {
     // When an instance of this class is created, this function will run.
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
         textView = findViewById<TextView>(R.id.model_result_text) as TextView
@@ -109,12 +116,46 @@ class MainActivity : AppCompatActivity() {
         viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
         viewBinding.selectImageButton.setOnClickListener { openGallery() }
         cameraExecutor = Executors.newSingleThreadExecutor()
+
+        setTvSelectedItem()
+        setHorizontalPicker()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         val inflater: MenuInflater = menuInflater
         inflater.inflate(R.menu.nav_menu, menu)
         return true
+    }
+
+    private fun setTvSelectedItem() {
+        tvSelectedItem = findViewById(R.id.tv_selected_item)
+    }
+
+    private fun setHorizontalPicker() {
+        rvHorizontalPicker = findViewById(R.id.rv_horizontal_picker)
+
+        // Setting the padding such that the items will appear in the middle of the screen
+        val padding: Int = ScreenUtils.getScreenWidth(this)/2 - ScreenUtils.dpToPx(this, 40)
+        rvHorizontalPicker.setPadding(padding, 0, padding, 0)
+
+        // Setting layout manager
+        rvHorizontalPicker.layoutManager = SliderLayoutManager(this).apply {
+            callback = object : SliderLayoutManager.OnItemSelectedListener {
+                override fun onItemSelected(layoutPosition: Int) {
+                    tvSelectedItem.setText(data[layoutPosition])
+                }
+            }
+        }
+
+        // Setting Adapter
+        rvHorizontalPicker.adapter = SliderAdapter().apply {
+            setData(data)
+            callback = object : SliderAdapter.Callback {
+                override fun onItemClicked(view: View) {
+                    rvHorizontalPicker.smoothScrollToPosition(rvHorizontalPicker.getChildLayoutPosition(view))
+                }
+            }
+        }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -192,18 +233,38 @@ class MainActivity : AppCompatActivity() {
                     var resultsList = classifySnakeImage(bitmap)
                     // create popup
 
-                    if (modelSelected == 0) {
-                        resultsList = classifySnakeImage(bitmap)
+                    when (tvSelectedItem.text) {
+                        "Snakes" -> {
+                            resultsList = classifySnakeImage(bitmap)
+                            // open popup
+                            val intent = Intent(this@MainActivity, Popup::class.java)
+                            intent.putExtra("Classification", resultsList[0])
+                            intent.putExtra("maxConfidence", resultsList[1])
+                            intent.putExtra("Type", "snake")
+                            startActivity(intent)
+                        }
+                        "Spiders" -> {
+                            resultsList = classifySnakeImage(bitmap)
+                            // open popup
+                            val intent = Intent(this@MainActivity, Popup::class.java)
+                            intent.putExtra("Classification", resultsList[0])
+                            intent.putExtra("maxConfidence", resultsList[1])
+                            intent.putExtra("Type", "spider")
+                            startActivity(intent)
+                        }
+                        "Dangerous Plants" -> {
+                            resultsList = classifyPlantImage(bitmap)
+                            // open popup
+                            val intent = Intent(this@MainActivity, Popup::class.java)
+                            intent.putExtra("Classification", resultsList[0])
+                            intent.putExtra("maxConfidence", resultsList[1])
+                            intent.putExtra("Type", "plant")
+                            startActivity(intent)
+                        }
+                        else -> { // Note the block
+                            // do nothing
+                        }
                     }
-                    else if (modelSelected == 1) {
-                        resultsList = classifyPlantImage(bitmap)
-                    }
-
-                    // open popup
-                    val intent = Intent(this@MainActivity, Popup::class.java)
-                    intent.putExtra("Classification", resultsList[0])
-                    intent.putExtra("maxConfidence", resultsList[1])
-                    startActivity(intent)
                     image.close()
                 }
                 override fun onError(exception: ImageCaptureException) {
@@ -255,7 +316,7 @@ class MainActivity : AppCompatActivity() {
         val confidences = outputFeature0.floatArray
         // find the index of the class with the biggest confidence.
         var maxPos = 0
-        var maxConfidence = 0.5f
+        var maxConfidence = 0.7f
         for (i in confidences.indices) {
             if (confidences[i] > maxConfidence) {
                 maxConfidence = confidences[i]
@@ -311,7 +372,7 @@ class MainActivity : AppCompatActivity() {
         val confidences = outputFeature0.floatArray
         // find the index of the class with the biggest confidence.
         var maxPos = 0
-        var maxConfidence = 0.5f // acceptable confidence
+        var maxConfidence = 0.7f // acceptable confidence
         for (i in confidences.indices) {
             if (confidences[i] > maxConfidence) {
                 maxConfidence = confidences[i]
@@ -440,18 +501,40 @@ class MainActivity : AppCompatActivity() {
             var uri = data?.data
             var bitmap : Bitmap = MediaStore.Images.Media.getBitmap(this.contentResolver, uri)
 
-            if (modelSelected == 0) {
-                resultsList = classifySnakeImage(bitmap)
-            }
-            else if (modelSelected == 1) {
-                resultsList = classifyPlantImage(bitmap)
+            when (tvSelectedItem.text) {
+                "Snakes" -> {
+                    resultsList = classifySnakeImage(bitmap)
+                    // open popup
+                    val intent = Intent(this@MainActivity, Popup::class.java)
+                    intent.putExtra("Classification", resultsList[0])
+                    intent.putExtra("maxConfidence", resultsList[1])
+                    intent.putExtra("Type", "snake")
+                    startActivity(intent)
+                }
+                "Spiders" -> {
+                    resultsList = classifySnakeImage(bitmap)
+                    // open popup
+                    val intent = Intent(this@MainActivity, Popup::class.java)
+                    intent.putExtra("Classification", resultsList[0])
+                    intent.putExtra("maxConfidence", resultsList[1])
+                    intent.putExtra("Type", "spider")
+                    startActivity(intent)
+                }
+                "Dangerous Plants" -> {
+                    resultsList = classifyPlantImage(bitmap)
+                    // open popup
+                    val intent = Intent(this@MainActivity, Popup::class.java)
+                    intent.putExtra("Classification", resultsList[0])
+                    intent.putExtra("maxConfidence", resultsList[1])
+                    intent.putExtra("Type", "plant")
+                    startActivity(intent)
+                }
+                else -> { // Note the block
+                    // do nothing
+                }
             }
 
-            // open popup
-            val intent = Intent(this@MainActivity, Popup::class.java)
-            intent.putExtra("Classification", resultsList[0])
-            intent.putExtra("maxConfidence", resultsList[1])
-            startActivity(intent)
+
         }
     }
 
@@ -461,7 +544,9 @@ class MainActivity : AppCompatActivity() {
         private val REQUIRED_PERMISSIONS =
             mutableListOf (
                 Manifest.permission.CAMERA,
-                Manifest.permission.RECORD_AUDIO
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
             ).apply {
                 if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
                     add(Manifest.permission.WRITE_EXTERNAL_STORAGE)

@@ -4,6 +4,9 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.text.method.ScrollingMovementMethod
@@ -15,6 +18,11 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.tasks.OnCompleteListener
+import com.google.firebase.Firebase
+import com.google.firebase.database.database
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -25,12 +33,7 @@ import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
-import java.io.InputStream
-import java.io.OutputStream
 import java.net.URL
-import java.nio.file.Files
-import java.nio.file.Paths
-import java.nio.file.StandardOpenOption
 import java.util.concurrent.TimeUnit
 
 
@@ -40,7 +43,7 @@ data class CSVData(
     val lat: Double
 )
 
-class Popup : AppCompatActivity() {
+class Popup : AppCompatActivity(), LocationListener {
 
 //var extras = intent.extras
 
@@ -55,7 +58,17 @@ class Popup : AppCompatActivity() {
 
     private lateinit var bitmapOutput : Bitmap
     private lateinit var imageView : ImageView
+    lateinit var locationManager: LocationManager
+    private lateinit var locationByGps : Location
 
+    private var fusedLocationProviderClient : FusedLocationProviderClient? = null
+
+    private var type : String? = null
+    private var classification : String? = null
+    private var longitude: Double? = null
+    private var latitude: Double? = null
+
+    private var currentLocation: Location? = null
     private var txtResponse : TextView? = null
     private var txtHeader : TextView? = null
 
@@ -67,33 +80,32 @@ class Popup : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        //txtHeader = findViewById<TextView>(R.id.popupHeaderText) as TextView
         var extras = intent.extras
         if (extras != null){
-            var classification = intent.getStringExtra("Classification")
+
+            classification = intent.getStringExtra("Classification")
+
+            type = intent.getStringExtra("Type")
 
             var question = "$classification poisonous/toxic?"
-            var prompt = "$classification snake"
+            var prompt = "$classification $type"
 
             var confidence = intent.getStringExtra("maxConfidence")
 
             var header = "Classification: $classification, confidence: $confidence."
             setContentView(R.layout.popup_window)
 
-            // map csv stuff
+            fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
 
-            var string = "$classification"
-            var inputStream: InputStream? = null
-            val path = System.getProperty("user.dir") + "\\src\\main\\res\\assets\\map.txt"
-            val text = "\n$classification, 0, 0"
-
+            // update longitude and latitude
             try {
-                Files.write(Paths.get(path), text.toByteArray(), StandardOpenOption.APPEND)
-            } catch (e: IOException) {
+                getLocation()
+            }
+            catch (e : Exception) {
+                e.printStackTrace()
             }
 
             // chat GPT stuff
-
             txtResponse = findViewById<TextView>(R.id.popupTextView) as TextView
 
             txtHeader = findViewById<TextView>(R.id.popupHeaderText) as TextView
@@ -118,13 +130,12 @@ class Popup : AppCompatActivity() {
                     txtResponse?.setText(response)
                 }
             }
-
-
+/*
             generateDALLEImage(prompt) { response ->
                 runOnUiThread {
                     imageView.setImageBitmap(response)
                 }
-            }
+            }*/
 
             moreInfoButton?.setOnClickListener(View.OnClickListener {
                 moreInfoButton?.visibility = View.GONE
@@ -138,10 +149,29 @@ class Popup : AppCompatActivity() {
 
             })
 
-
-
         }
 
+    }
+
+    private fun addDataToDB(type: String, lon: Double, lat: Double) {
+        // create a hashmap of the data
+        var dataHashmap : HashMap<String, String> = HashMap();
+
+        dataHashmap.put("name", "$classification")
+        dataHashmap.put("type", "$type")
+        dataHashmap.put("lon", "$lon")
+        dataHashmap.put("lat", "$lat")
+
+        // Write a message to the database
+        val database = Firebase.database
+        val myRef = database.getReference("map")
+
+        val key = myRef.push().key as String
+        dataHashmap.put("key", "$key")
+
+        myRef.child(key).setValue(dataHashmap).addOnCompleteListener(OnCompleteListener {
+                _ -> Log.i("FireDB", "SUCCESS")
+        })
     }
 
     fun getGPTResponse(question: String, callback: (String) -> Unit) {
@@ -208,8 +238,6 @@ class Popup : AppCompatActivity() {
             }
         """.trimIndent()
 
-        //var mapHeader : Map<String, String> = HashMap<String, String>()
-
         val request = Request.Builder()
             .url(url)
             .addHeader("Content-Type", "application/json")
@@ -238,22 +266,30 @@ class Popup : AppCompatActivity() {
                 val bitmapImageScaled = Bitmap.createScaledBitmap(bitmapOutput, imageView.width, imageView.height, true)
 
                 callback(bitmapImageScaled)
-                //imageView.setImageBitmap(bitmapImageScaled)
             }
 
         })
 
     }
 
-    fun OutputStream.writeCsv(CSVRow: List<CSVData>) {
-        val writer = bufferedWriter()
-        writer.write(""""date", "type", "lon", "lat"""")
-        writer.newLine()
-        CSVRow.forEach {
-            writer.write("${it.type}, ${it.lat}, \"${it.lat}\"")
-            writer.newLine()
+    @SuppressLint("MissingPermission")
+    private fun getLocation() {
+        val location = fusedLocationProviderClient?.lastLocation
+        if (location != null) {
+            location.addOnSuccessListener {
+                if(it!=null) {
+                    latitude = it.latitude
+                    longitude = it.longitude
+                    Log.i("PhotoLocation", "long: $longitude, lat: $latitude")
+
+                    type?.let { it1 -> addDataToDB(it1, longitude!!, latitude!!) }
+                }
+            }
         }
-        writer.flush()
+    }
+
+    override fun onLocationChanged(location: Location) {
+        TODO("Not yet implemented")
     }
 
 
