@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
@@ -167,8 +168,10 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             R.id.map -> {
-                val intent = Intent(this@MainActivity, Map::class.java)
-                startActivity(intent)
+                //val intent = Intent(this@MainActivity, Map::class.java)
+                //startActivity(intent)
+                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://joshwilkinson.pythonanywhere.com/map"))
+                startActivity(browserIntent)
                 true
             }
             R.id.chat -> {
